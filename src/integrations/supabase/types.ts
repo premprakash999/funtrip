@@ -110,6 +110,109 @@ export type Database = {
           },
         ]
       }
+      poll_options: {
+        Row: {
+          created_at: string
+          id: string
+          option_text: string
+          poll_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          option_text: string
+          poll_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          option_text?: string
+          poll_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "poll_options_poll_id_fkey"
+            columns: ["poll_id"]
+            isOneToOne: false
+            referencedRelation: "polls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      poll_votes: {
+        Row: {
+          created_at: string
+          id: string
+          option_id: string
+          poll_id: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          option_id: string
+          poll_id: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          option_id?: string
+          poll_id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "poll_votes_option_id_fkey"
+            columns: ["option_id"]
+            isOneToOne: false
+            referencedRelation: "poll_options"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "poll_votes_poll_id_fkey"
+            columns: ["poll_id"]
+            isOneToOne: false
+            referencedRelation: "polls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      polls: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          is_anonymous: boolean
+          question: string
+          trip_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          is_anonymous?: boolean
+          question: string
+          trip_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_anonymous?: boolean
+          question?: string
+          trip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "polls_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
