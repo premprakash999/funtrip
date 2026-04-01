@@ -275,6 +275,47 @@ export type Database = {
           },
         ]
       }
+      trip_items: {
+        Row: {
+          brought_by: string
+          category: string
+          created_at: string
+          id: string
+          is_packed: boolean
+          item_name: string
+          quantity: number
+          trip_id: string
+        }
+        Insert: {
+          brought_by: string
+          category?: string
+          created_at?: string
+          id?: string
+          is_packed?: boolean
+          item_name: string
+          quantity?: number
+          trip_id: string
+        }
+        Update: {
+          brought_by?: string
+          category?: string
+          created_at?: string
+          id?: string
+          is_packed?: boolean
+          item_name?: string
+          quantity?: number
+          trip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_items_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trip_members: {
         Row: {
           id: string
