@@ -110,6 +110,146 @@ export type Database = {
           },
         ]
       }
+      image_reactions: {
+        Row: {
+          created_at: string
+          id: string
+          image_id: string
+          reaction_type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          image_id: string
+          reaction_type?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          image_id?: string
+          reaction_type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "image_reactions_image_id_fkey"
+            columns: ["image_id"]
+            isOneToOne: false
+            referencedRelation: "trip_images"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      forum_comments: {
+        Row: {
+          comment: string
+          created_at: string
+          id: string
+          post_id: string
+          user_id: string
+        }
+        Insert: {
+          comment: string
+          created_at?: string
+          id?: string
+          post_id: string
+          user_id: string
+        }
+        Update: {
+          comment?: string
+          created_at?: string
+          id?: string
+          post_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forum_comments_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "forum_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      forum_posts: {
+        Row: {
+          body: string | null
+          category: string
+          created_at: string
+          created_by: string
+          id: string
+          status: string
+          title: string
+          trip_id: string
+          updated_at: string
+        }
+        Insert: {
+          body?: string | null
+          category?: string
+          created_at?: string
+          created_by: string
+          id?: string
+          status?: string
+          title: string
+          trip_id: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string | null
+          category?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          status?: string
+          title?: string
+          trip_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forum_posts_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      forum_post_reactions: {
+        Row: {
+          created_at: string
+          id: string
+          post_id: string
+          reaction_type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          post_id: string
+          reaction_type?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          post_id?: string
+          reaction_type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forum_post_reactions_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "forum_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       poll_options: {
         Row: {
           created_at: string
@@ -219,6 +359,7 @@ export type Database = {
           created_at: string
           display_name: string | null
           id: string
+          role: Database["public"]["Enums"]["app_role"]
           updated_at: string
           user_id: string
         }
@@ -227,6 +368,7 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id?: string
+          role?: Database["public"]["Enums"]["app_role"]
           updated_at?: string
           user_id: string
         }
@@ -235,10 +377,52 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id?: string
+          role?: Database["public"]["Enums"]["app_role"]
           updated_at?: string
           user_id?: string
         }
         Relationships: []
+      }
+      settlement_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          from_user_id: string
+          id: string
+          notes: string | null
+          recorded_by: string
+          to_user_id: string
+          trip_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          from_user_id: string
+          id?: string
+          notes?: string | null
+          recorded_by: string
+          to_user_id: string
+          trip_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          from_user_id?: string
+          id?: string
+          notes?: string | null
+          recorded_by?: string
+          to_user_id?: string
+          trip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "settlement_payments_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       trip_images: {
         Row: {
@@ -281,9 +465,9 @@ export type Database = {
           category: string
           created_at: string
           id: string
-          is_packed: boolean
           item_name: string
           quantity: number
+          status: string
           trip_id: string
         }
         Insert: {
@@ -291,9 +475,9 @@ export type Database = {
           category?: string
           created_at?: string
           id?: string
-          is_packed?: boolean
           item_name: string
           quantity?: number
+          status?: string
           trip_id: string
         }
         Update: {
@@ -301,9 +485,9 @@ export type Database = {
           category?: string
           created_at?: string
           id?: string
-          is_packed?: boolean
           item_name?: string
           quantity?: number
+          status?: string
           trip_id?: string
         }
         Relationships: [
@@ -381,9 +565,13 @@ export type Database = {
         Args: { _trip_id: string; _user_id: string }
         Returns: boolean
       }
+      is_super_admin: {
+        Args: { _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "super_admin" | "admin"
     }
     CompositeTypes: {
       [_ in never]: never
