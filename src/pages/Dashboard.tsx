@@ -65,7 +65,7 @@ const Dashboard = () => {
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
           <div className="flex items-center gap-2">
             <Plane className="h-6 w-6 text-primary" />
-            <h1 className="text-xl font-bold">TripSplit</h1>
+            <h1 className="text-xl font-bold">FunTrip</h1>
           </div>
           <Button variant="ghost" size="sm" onClick={signOut}>
             <LogOut className="mr-2 h-4 w-4" /> Sign Out

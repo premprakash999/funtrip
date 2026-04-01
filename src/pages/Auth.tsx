@@ -46,8 +46,8 @@ const Auth = () => {
           <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary">
             <Plane className="h-6 w-6 text-primary-foreground" />
           </div>
-          <CardTitle className="text-2xl">TripSplit</CardTitle>
-          <CardDescription>Share expenses with your travel buddies</CardDescription>
+          <CardTitle className="text-2xl">FunTrip</CardTitle>
+          <CardDescription>Plan trips, share expenses & have fun together!</CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="login">
