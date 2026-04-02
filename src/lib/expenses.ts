@@ -7,7 +7,9 @@ export interface Balance {
 export function simplifyDebts(
   balances: Record<string, number>
 ): Balance[] {
-  // balances: userId -> net amount (positive = owed money, negative = owes money)
+  // balances: userId -> net amount (positive = gets back, negative = owes)
+  // This produces a Splitwise-style simplified settlement graph:
+  // minimum practical payer -> receiver transfers after netting everyone out.
   const debtors: { id: string; amount: number }[] = [];
   const creditors: { id: string; amount: number }[] = [];
 

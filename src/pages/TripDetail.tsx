@@ -29,6 +29,7 @@ interface Poll { id: string; question: string; is_anonymous: boolean; created_by
 interface PollOption { id: string; poll_id: string; option_text: string }
 interface PollVote { id: string; poll_id: string; option_id: string; user_id: string | null }
 type InventoryStatus = 'new' | 'buying' | 'bought' | 'expired' | 'not_needed';
+type ExpenseSplitMode = 'equal' | 'exact' | 'percentage';
 type ViewerRole = 'super_admin' | 'admin';
 type TripTab = 'expenses' | 'settle' | 'inventory' | 'forum' | 'polls' | 'gallery' | 'members';
 type ForumCategory = 'general' | 'infrastructure' | 'cleanliness' | 'security' | 'suggestions' | 'appreciation';
@@ -57,6 +58,11 @@ const STATUS_BADGE_CLASSES: Record<InventoryStatus, string> = {
   not_needed: 'bg-zinc-100 text-zinc-700 border-zinc-200',
 };
 const STATUS_ORDER: InventoryStatus[] = ['new', 'buying', 'bought', 'expired', 'not_needed'];
+const EXPENSE_SPLIT_MODES: { value: ExpenseSplitMode; label: string; helper: string }[] = [
+  { value: 'equal', label: 'Equal split', helper: 'Everyone selected shares the cost equally.' },
+  { value: 'exact', label: 'Exact amounts', helper: 'Enter the exact amount each selected member owes.' },
+  { value: 'percentage', label: 'Percentages', helper: 'Enter percentages for selected members. Total must be 100%.' },
+];
 const FORUM_CATEGORIES: { value: ForumCategory; label: string; emoji: string; badgeClass: string }[] = [
   { value: 'general', label: 'General', emoji: '💬', badgeClass: 'bg-stone-100 text-stone-700 border-stone-200' },
   { value: 'infrastructure', label: 'Infrastructure', emoji: '🔧', badgeClass: 'bg-rose-100 text-rose-700 border-rose-200' },
@@ -93,6 +99,7 @@ const TRIP_NAV: { group: string; items: { key: TripTab; label: string; icon: typ
 
 const getInitials = (name: string) => name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?';
 const formatInventoryStatus = (status: InventoryStatus) => INVENTORY_STATUSES.find(option => option.value === status)?.label || status;
+const formatCurrency = (value: number) => `₹${value.toFixed(2)}`;
 const getForumCategoryMeta = (category: ForumCategory) =>
   FORUM_CATEGORIES.find(option => option.value === category) || FORUM_CATEGORIES[0];
 const formatRelativeDate = (value: string) => {
@@ -164,7 +171,10 @@ const TripDetail = () => {
   const [newComment, setNewComment] = useState('');
   const [expDesc, setExpDesc] = useState('');
   const [expAmount, setExpAmount] = useState('');
+  const [expensePaidBy, setExpensePaidBy] = useState('');
+  const [expenseSplitMode, setExpenseSplitMode] = useState<ExpenseSplitMode>('equal');
   const [expenseParticipantIds, setExpenseParticipantIds] = useState<string[]>([]);
+  const [expenseCustomShares, setExpenseCustomShares] = useState<Record<string, string>>({});
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imageCaption, setImageCaption] = useState('');
   const [memberEmail, setMemberEmail] = useState('');
@@ -173,6 +183,7 @@ const TripDetail = () => {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentNotes, setPaymentNotes] = useState('');
   const [activeTab, setActiveTab] = useState<TripTab>('expenses');
+  const [memberNetBalances, setMemberNetBalances] = useState<Record<string, number>>({});
 
   useEffect(() => {
     const nextTab = searchParams.get('tab');
@@ -187,8 +198,15 @@ const TripDetail = () => {
   }, [authLoading, navigate, user]);
 
   useEffect(() => {
-    setExpenseParticipantIds(members.map(member => member.user_id));
-  }, [members]);
+    const nextParticipantIds = members.map(member => member.user_id);
+    setExpenseParticipantIds(nextParticipantIds);
+    setExpenseCustomShares(Object.fromEntries(nextParticipantIds.map(memberId => [memberId, ''])));
+    setExpensePaidBy(current => {
+      if (current && nextParticipantIds.includes(current)) return current;
+      if (user?.id && nextParticipantIds.includes(user.id)) return user.id;
+      return nextParticipantIds[0] || '';
+    });
+  }, [members, user?.id]);
 
   const fetchViewerProfile = async () => {
     if (!user) return;
@@ -242,6 +260,10 @@ const TripDetail = () => {
     });
   };
 
+  const setExpenseCustomShare = (memberId: string, value: string) => {
+    setExpenseCustomShares(current => ({ ...current, [memberId]: value }));
+  };
+
   const buildEqualShares = (amount: number, participantIds: string[]) => {
     const totalCents = Math.round(amount * 100);
     const baseShare = Math.floor(totalCents / participantIds.length);
@@ -251,6 +273,101 @@ const TripDetail = () => {
       user_id: userId,
       amount: (baseShare + (index < remainder ? 1 : 0)) / 100,
     }));
+  };
+
+  const buildWeightedShares = (
+    amount: number,
+    weightedValues: { user_id: string; weight: number }[],
+  ) => {
+    const totalWeight = weightedValues.reduce((sum, item) => sum + item.weight, 0);
+    const totalCents = Math.round(amount * 100);
+    let allocatedCents = 0;
+
+    const computed = weightedValues.map((item, index) => {
+      const exactCents = (item.weight / totalWeight) * totalCents;
+      const cents = Math.floor(exactCents);
+      allocatedCents += cents;
+      return {
+        user_id: item.user_id,
+        cents,
+        remainder: exactCents - cents,
+        index,
+      };
+    });
+
+    let remainingCents = totalCents - allocatedCents;
+    [...computed]
+      .sort((a, b) => b.remainder - a.remainder)
+      .forEach(item => {
+        if (remainingCents <= 0) return;
+        item.cents += 1;
+        remainingCents -= 1;
+      });
+
+    return computed
+      .sort((a, b) => a.index - b.index)
+      .map(item => ({
+        user_id: item.user_id,
+        amount: item.cents / 100,
+      }));
+  };
+
+  const buildExpenseShares = (amount: number, participantIds: string[]) => {
+    if (expenseSplitMode === 'equal') {
+      return { shares: buildEqualShares(amount, participantIds) };
+    }
+
+    const numericInputs = participantIds.map(memberId => ({
+      user_id: memberId,
+      value: Number(expenseCustomShares[memberId] || 0),
+    }));
+
+    if (numericInputs.some(item => !Number.isFinite(item.value) || item.value < 0)) {
+      return { error: expenseSplitMode === 'percentage' ? 'Enter valid percentages for every selected member.' : 'Enter valid amounts for every selected member.' };
+    }
+
+    if (expenseSplitMode === 'exact') {
+      const totalExact = numericInputs.reduce((sum, item) => sum + item.value, 0);
+      if (totalExact <= 0) {
+        return { error: 'Enter an amount for at least one selected member.' };
+      }
+      if (Math.abs(totalExact - amount) > 0.01) {
+        return { error: `Exact split must total ${formatCurrency(amount)}.` };
+      }
+
+      const normalized = numericInputs.map((item, index) => {
+        if (index === numericInputs.length - 1) {
+          const previousTotal = numericInputs
+            .slice(0, -1)
+            .reduce((sum, entry) => sum + Math.round(entry.value * 100), 0);
+          return {
+            user_id: item.user_id,
+            amount: (Math.round(amount * 100) - previousTotal) / 100,
+          };
+        }
+        return {
+          user_id: item.user_id,
+          amount: Math.round(item.value * 100) / 100,
+        };
+      });
+
+      return { shares: normalized };
+    }
+
+    const totalPercentage = numericInputs.reduce((sum, item) => sum + item.value, 0);
+    if (totalPercentage <= 0) {
+      return { error: 'Enter percentages for the selected members.' };
+    }
+    if (Math.abs(totalPercentage - 100) > 0.01) {
+      return { error: 'Percentage split must total 100%.' };
+    }
+
+    return {
+      shares: buildWeightedShares(
+        amount,
+        numericInputs.map(item => ({ user_id: item.user_id, weight: item.value })),
+      ),
+    };
   };
 
   const fetchTripBasics = async () => {
@@ -301,6 +418,7 @@ const TripDetail = () => {
 
     if (expensesData.length === 0) {
       setExpenseSharesByExpense({});
+      setMemberNetBalances(Object.fromEntries(memberIds.map(memberId => [memberId, 0])));
       setSettlements([]);
       return;
     }
@@ -338,7 +456,12 @@ const TripDetail = () => {
       netBalances[payment.to_user_id] = (netBalances[payment.to_user_id] || 0) - Number(payment.amount);
     });
 
-    setSettlements(simplifyDebts(netBalances));
+    const roundedBalances = Object.fromEntries(
+      Object.entries(netBalances).map(([memberId, balance]) => [memberId, Math.round(balance * 100) / 100]),
+    );
+
+    setMemberNetBalances(roundedBalances);
+    setSettlements(simplifyDebts(roundedBalances));
   };
 
   const fetchImages = async () => {
@@ -520,10 +643,18 @@ const TripDetail = () => {
     const participantIds = expenseParticipantIds.length > 0 ? expenseParticipantIds : members.map(member => member.user_id);
     if (participantIds.length === 0) { toast.error('Select at least one member for this expense.'); return; }
 
-    const { data: expense, error } = await supabase.from('expenses').insert({ trip_id: tripId, paid_by: user.id, description: expDesc, amount }).select().single();
+    if (!expensePaidBy) { toast.error('Choose who paid for this expense.'); return; }
+
+    const { shares, error: sharesError } = buildExpenseShares(amount, participantIds);
+    if (sharesError || !shares) {
+      toast.error(sharesError || 'Unable to calculate expense shares.');
+      return;
+    }
+
+    const { data: expense, error } = await supabase.from('expenses').insert({ trip_id: tripId, paid_by: expensePaidBy, description: expDesc, amount }).select().single();
     if (error) { toast.error(error.message); return; }
 
-    const shareRows = buildEqualShares(amount, participantIds).map(share => ({
+    const shareRows = shares.map(share => ({
       expense_id: expense.id,
       user_id: share.user_id,
       amount: share.amount,
@@ -537,7 +668,10 @@ const TripDetail = () => {
 
     setExpDesc('');
     setExpAmount('');
+    setExpenseSplitMode('equal');
     setExpenseParticipantIds(members.map(member => member.user_id));
+    setExpenseCustomShares(Object.fromEntries(members.map(member => [member.user_id, ''])));
+    setExpensePaidBy(user.id);
     setExpenseDialog(false);
     toast.success('Expense added! 💸');
     fetchExpensesAndSettlements(members.map(member => member.user_id));
@@ -558,6 +692,11 @@ const TripDetail = () => {
     const amount = parseFloat(paymentAmount);
     if (isNaN(amount) || amount <= 0) {
       toast.error('Enter a valid payment amount');
+      return;
+    }
+
+    if (amount - selectedSettlement.amount > 0.01) {
+      toast.error('Payment cannot be more than the outstanding amount.');
       return;
     }
 
@@ -800,6 +939,22 @@ const TripDetail = () => {
     members: { title: 'Members', description: 'See everyone in this trip workspace and add new travelers.' },
   };
   const totalRecordedPayments = settlementPayments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+  const selectedExpenseMembers = members.filter(member => expenseParticipantIds.includes(member.user_id));
+  const currentExpenseAmount = Number(expAmount || 0);
+  const expenseCustomSplitTotal = selectedExpenseMembers.reduce((sum, member) => sum + Number(expenseCustomShares[member.user_id] || 0), 0);
+  const youOweTotal = settlements
+    .filter(settlement => settlement.from === user?.id)
+    .reduce((sum, settlement) => sum + settlement.amount, 0);
+  const youAreOwedTotal = settlements
+    .filter(settlement => settlement.to === user?.id)
+    .reduce((sum, settlement) => sum + settlement.amount, 0);
+  const yourNetBalance = Math.round((memberNetBalances[user?.id || ''] || 0) * 100) / 100;
+  const travelerBalances = members
+    .map(member => ({
+      ...member,
+      balance: Math.round((memberNetBalances[member.user_id] || 0) * 100) / 100,
+    }))
+    .sort((a, b) => b.balance - a.balance);
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#eff8f7_0%,#fff7f1_30%,#fffdfb_100%)]">
@@ -1044,6 +1199,31 @@ const TripDetail = () => {
                     <div className="space-y-2"><Label>Description</Label><Input value={expDesc} onChange={e => setExpDesc(e.target.value)} placeholder="Lunch at restaurant" required /></div>
                     <div className="space-y-2"><Label>Amount (₹)</Label><Input type="number" step="0.01" value={expAmount} onChange={e => setExpAmount(e.target.value)} placeholder="500" required /></div>
                     <div className="space-y-2">
+                      <Label>Paid By</Label>
+                      <Select value={expensePaidBy} onValueChange={setExpensePaidBy}>
+                        <SelectTrigger><SelectValue placeholder="Choose the payer" /></SelectTrigger>
+                        <SelectContent>
+                          {members.map(member => (
+                            <SelectItem key={member.user_id} value={member.user_id}>{member.display_name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Split Mode</Label>
+                      <Select value={expenseSplitMode} onValueChange={value => setExpenseSplitMode(value as ExpenseSplitMode)}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {EXPENSE_SPLIT_MODES.map(mode => (
+                            <SelectItem key={mode.value} value={mode.value}>{mode.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-sm text-muted-foreground">
+                        {EXPENSE_SPLIT_MODES.find(mode => mode.value === expenseSplitMode)?.helper}
+                      </p>
+                    </div>
+                    <div className="space-y-2">
                       <Label>Split Between Members</Label>
                       <div className="rounded-xl border p-3">
                         <div className="grid gap-3 sm:grid-cols-2">
@@ -1059,9 +1239,43 @@ const TripDetail = () => {
                         </div>
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        Split equally among {expenseParticipantIds.length} selected member{expenseParticipantIds.length === 1 ? '' : 's'}.
+                        {expenseParticipantIds.length} selected member{expenseParticipantIds.length === 1 ? '' : 's'} will be included in this expense.
                       </p>
                     </div>
+                    {expenseSplitMode !== 'equal' && (
+                      <div className="space-y-3 rounded-xl border border-dashed p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-medium">
+                              {expenseSplitMode === 'exact' ? 'Exact share entry' : 'Percentage entry'}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {expenseSplitMode === 'exact'
+                                ? `Entered total: ${formatCurrency(expenseCustomSplitTotal)} of ${formatCurrency(currentExpenseAmount)}`
+                                : `Entered total: ${expenseCustomSplitTotal.toFixed(2)}% of 100%`}
+                            </p>
+                          </div>
+                          <Badge variant="outline">
+                            {expenseSplitMode === 'exact' ? formatCurrency(currentExpenseAmount) : '100% target'}
+                          </Badge>
+                        </div>
+                        <div className="space-y-3">
+                          {selectedExpenseMembers.map(member => (
+                            <div key={member.user_id} className="grid gap-2 sm:grid-cols-[1fr_140px] sm:items-center">
+                              <div className="text-sm font-medium">{member.display_name}</div>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={expenseCustomShares[member.user_id] || ''}
+                                onChange={e => setExpenseCustomShare(member.user_id, e.target.value)}
+                                placeholder={expenseSplitMode === 'exact' ? '0.00' : '0'}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <Button type="submit" className="w-full gradient-primary border-none text-primary-foreground">Add Expense</Button>
                   </form>
                 </DialogContent>
@@ -1074,11 +1288,11 @@ const TripDetail = () => {
                 <div className="overflow-x-auto">
                 <Table>
                   <TableHeader><TableRow>
-                    <TableHead>Description</TableHead><TableHead>Paid By</TableHead><TableHead>Split With</TableHead><TableHead className="text-right">Amount</TableHead><TableHead className="text-right">Date</TableHead><TableHead></TableHead>
+                    <TableHead>Description</TableHead><TableHead>Paid By</TableHead><TableHead>Split Details</TableHead><TableHead className="text-right">Amount</TableHead><TableHead className="text-right">Date</TableHead><TableHead></TableHead>
                   </TableRow></TableHeader>
                   <TableBody>
                     {expenses.map(exp => {
-                      const sharedMembers = (expenseSharesByExpense[exp.id] || []).map(share => profiles[share.user_id] || 'Unknown');
+                      const sharedMembers = expenseSharesByExpense[exp.id] || [];
                       return (
                       <TableRow key={exp.id}>
                         <TableCell className="font-medium">{exp.description}</TableCell>
@@ -1089,13 +1303,13 @@ const TripDetail = () => {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex flex-wrap gap-1">
+                          <div className="flex flex-wrap gap-1.5">
                             {sharedMembers.length === 0 ? (
                               <span className="text-sm text-muted-foreground">No members</span>
                             ) : (
-                              sharedMembers.map(memberName => (
-                                <Badge key={`${exp.id}-${memberName}`} variant="outline" className="text-xs">
-                                  {memberName}
+                              sharedMembers.map(share => (
+                                <Badge key={`${exp.id}-${share.user_id}`} variant="outline" className="text-xs">
+                                  {(profiles[share.user_id] || 'Unknown')} - {formatCurrency(Number(share.amount))}
                                 </Badge>
                               ))
                             )}
@@ -1120,11 +1334,65 @@ const TripDetail = () => {
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h3 className="text-lg font-bold">Settlement Summary</h3>
-                <p className="text-sm text-muted-foreground">See who needs to pay whom, how much is already recorded, and log payments with notes.</p>
+                <p className="text-sm text-muted-foreground">Splitwise-style simplified debts are shown here after netting all expenses and recorded payments.</p>
               </div>
               <Badge variant="outline" className="w-fit rounded-full px-3 py-1">Recorded: ₹{totalRecordedPayments.toFixed(2)}</Badge>
             </div>
             <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-3">
+                <Card className="border-white/60 shadow-sm">
+                  <CardContent className="p-5">
+                    <p className="text-sm text-muted-foreground">You owe</p>
+                    <p className="mt-2 text-2xl font-bold">{formatCurrency(youOweTotal)}</p>
+                  </CardContent>
+                </Card>
+                <Card className="border-white/60 shadow-sm">
+                  <CardContent className="p-5">
+                    <p className="text-sm text-muted-foreground">You get back</p>
+                    <p className="mt-2 text-2xl font-bold">{formatCurrency(youAreOwedTotal)}</p>
+                  </CardContent>
+                </Card>
+                <Card className="border-white/60 shadow-sm">
+                  <CardContent className="p-5">
+                    <p className="text-sm text-muted-foreground">Net balance</p>
+                    <p className="mt-2 text-2xl font-bold">{formatCurrency(yourNetBalance)}</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <Card className="border-white/60 shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Traveler Balances</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Traveler</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Net Balance</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {travelerBalances.map(member => (
+                          <TableRow key={`balance-${member.user_id}`}>
+                            <TableCell className="font-medium">{member.display_name}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">
+                                {member.balance > 0.009 ? 'Gets back' : member.balance < -0.009 ? 'Owes' : 'Settled'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right font-semibold">
+                              {formatCurrency(member.balance)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
               {settlements.length === 0 ? (
                 <Card className="border-dashed border-2">
                   <CardContent className="py-10 text-center">
@@ -1136,9 +1404,12 @@ const TripDetail = () => {
                 <div className="space-y-3">
                   <Card className="border-white/60 shadow-sm">
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Who Needs To Pay Whom</CardTitle>
+                      <CardTitle className="text-base">Simplified Who Pays Whom</CardTitle>
                     </CardHeader>
                     <CardContent className="pt-0">
+                      <p className="mb-4 text-sm text-muted-foreground">
+                        These are the minimum settlement transfers needed right now.
+                      </p>
                       <div className="overflow-x-auto">
                         <Table>
                           <TableHeader>
@@ -1256,6 +1527,11 @@ const TripDetail = () => {
                       <span className="text-muted-foreground"> paying </span>
                       <span className="font-medium">{selectedSettlement ? (profiles[selectedSettlement.to] || 'Unknown') : 'Receiver'}</span>
                     </p>
+                    {selectedSettlement && (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Outstanding balance: {formatCurrency(selectedSettlement.amount)}
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label>Amount</Label>
