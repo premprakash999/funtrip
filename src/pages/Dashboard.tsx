@@ -160,7 +160,23 @@ const Dashboard = () => {
 
   const overview = (
     <div className="space-y-6">
-      <div className="rounded-[28px] bg-[linear-gradient(135deg,#f76707_0%,#d9480f_45%,#617a43_100%)] px-6 py-6 text-white shadow-[0_30px_60px_-30px_rgba(217,72,15,0.8)] sm:px-8">
+      <div className="rounded-[24px] border border-white/60 bg-white/85 p-4 shadow-sm md:hidden">
+        <div className="space-y-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a796b]">Workspace</p>
+            <p className="mt-2 text-2xl font-extrabold text-foreground">{greeting()}, {profile?.display_name || 'Traveler'}</p>
+            <p className="mt-2 text-sm text-muted-foreground">Open trips, members, and planning tools without the desktop-heavy dashboard shell.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline">{trips.length} trips</Badge>
+            <Badge variant="outline">{travelerCount} travelers</Badge>
+            <Badge variant="outline">{profile?.role === 'super_admin' ? 'Super Admin' : 'Admin'}</Badge>
+          </div>
+          {latestTrip && <Button className="w-full gradient-primary border-none text-primary-foreground" onClick={() => openLatestTrip()}>Open Latest Trip</Button>}
+        </div>
+      </div>
+
+      <div className="hidden rounded-[28px] bg-[linear-gradient(135deg,#f76707_0%,#d9480f_45%,#617a43_100%)] px-6 py-6 text-white shadow-[0_30px_60px_-30px_rgba(217,72,15,0.8)] md:block sm:px-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-3xl font-extrabold">{greeting()}, {profile?.display_name || 'Traveler'}</p>
@@ -171,7 +187,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="hidden gap-4 sm:grid sm:grid-cols-2 xl:grid-cols-4">
         {[
           { label: 'Trips', value: trips.length, icon: Map },
           { label: 'Travelers', value: travelerCount, icon: Users },
@@ -307,17 +323,17 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#eff8f7_0%,#fff7f1_30%,#fffdfb_100%)]">
-      <header className="sticky top-0 z-30 border-b border-[#eadfd4] bg-white/85 backdrop-blur-md">
-        <div className="flex items-center justify-between gap-4 px-4 py-4 sm:px-6">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#ff8a3d_0%,#f76707_100%)] shadow-[0_12px_30px_-18px_rgba(247,103,7,0.9)]">
-              <Home className="h-5 w-5 text-white" />
+      <header className="sticky top-0 z-30 border-b border-[#eadfd4] bg-white/90 backdrop-blur-md">
+        <div className="flex items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#ff8a3d_0%,#f76707_100%)] shadow-[0_12px_30px_-18px_rgba(247,103,7,0.9)] sm:h-11 sm:w-11">
+              <Home className="h-4 w-4 text-white sm:h-5 sm:w-5" />
             </div>
-            <div>
-              <p className="text-2xl font-bold text-[#f76707]">FunTrip</p>
-              <p className="text-xs uppercase tracking-[0.2em] text-[#8a796b]">Travel Hub</p>
+            <div className="min-w-0">
+              <p className="truncate text-xl font-bold text-[#f76707] sm:text-2xl">FunTrip</p>
+              <p className="hidden text-xs uppercase tracking-[0.2em] text-[#8a796b] sm:block">Travel Hub</p>
             </div>
-            <Badge className="rounded-full border border-[#ffd8bf] bg-[#fff2e8] px-4 py-1 text-[#d9480f] hover:bg-[#fff2e8]">Group Planning Workspace</Badge>
+            <Badge className="hidden rounded-full border border-[#ffd8bf] bg-[#fff2e8] px-4 py-1 text-[#d9480f] hover:bg-[#fff2e8] sm:inline-flex">Group Planning Workspace</Badge>
           </div>
           <div className="flex items-center gap-3">
             <div className="hidden items-center gap-3 rounded-full border border-[#eadfd4] bg-white px-3 py-2 shadow-sm sm:flex">
@@ -327,13 +343,13 @@ const Dashboard = () => {
                 <p className="text-xs text-muted-foreground">{profile?.role === 'super_admin' ? 'Super Admin' : 'Admin'}</p>
               </div>
             </div>
-            <Button variant="outline" className="rounded-full" onClick={handleSignOut}><LogOut className="mr-2 h-4 w-4" /> Sign Out</Button>
+            <Button variant="outline" className="rounded-full px-3 sm:px-4" onClick={handleSignOut}><LogOut className="h-4 w-4 sm:mr-2" /> <span className="hidden sm:inline">Sign Out</span></Button>
           </div>
         </div>
       </header>
 
       <div className="lg:grid lg:grid-cols-[250px_minmax(0,1fr)]">
-        <aside className="border-b border-[#eadfd4] bg-white/75 px-4 py-5 backdrop-blur-sm lg:min-h-[calc(100vh-81px)] lg:border-b-0 lg:border-r lg:px-5">
+        <aside className="sticky top-[65px] z-20 border-b border-[#eadfd4] bg-white/85 px-4 py-3 backdrop-blur-sm lg:static lg:min-h-[calc(100vh-81px)] lg:border-b-0 lg:border-r lg:px-5 lg:py-5">
           <div className="hidden space-y-6 lg:block">
             {NAV.map(sectionGroup => (
               <div key={sectionGroup.group}>
@@ -359,7 +375,7 @@ const Dashboard = () => {
             ))}
           </div>
 
-          <div className="flex gap-2 overflow-x-auto lg:hidden">
+          <div className="flex gap-2 overflow-x-auto py-1 lg:hidden">
             {NAV.flatMap(sectionGroup => sectionGroup.items).map(item => {
               const Icon = item.icon;
               const isActive = item.key ? section === item.key : false;
@@ -378,7 +394,7 @@ const Dashboard = () => {
           </div>
         </aside>
 
-        <main className="px-4 py-5 sm:px-6 sm:py-6">
+        <main className="px-4 py-4 sm:px-6 sm:py-6">
           {loading ? (
             <Card className="border-white/60 shadow-sm"><CardContent className="py-16 text-center text-muted-foreground">Loading dashboard...</CardContent></Card>
           ) : section === 'dashboard' ? overview : section === 'trips' ? tripList : memberList}

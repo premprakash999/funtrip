@@ -17,10 +17,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { ArrowLeft, ArrowRight, BarChart3, Camera, CreditCard, HandCoins, Home, LogOut, MessageSquareText, Package, Plus, Send, Shield, ThumbsUp, Trash2, Upload, Users, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BarChart3, Camera, CreditCard, HandCoins, Home, LogOut, MessageSquareText, Package, Pencil, Plus, Send, Shield, ThumbsUp, Trash2, Upload, Users, X } from 'lucide-react';
 
 interface Member { user_id: string; display_name: string }
-interface Expense { id: string; description: string; amount: number; paid_by: string; created_at: string }
+interface Expense { id: string; description: string; amount: number; paid_by: string; created_by: string; created_at: string }
 interface SettlementPayment { id: string; trip_id: string; from_user_id: string; to_user_id: string; amount: number; notes: string | null; recorded_by: string; created_at: string }
 interface TripImage { id: string; image_url: string; caption: string | null; uploaded_by: string; created_at: string }
 interface Comment { id: string; comment: string; user_id: string; created_at: string; commenter_name?: string }
@@ -171,6 +171,7 @@ const TripDetail = () => {
   const [newComment, setNewComment] = useState('');
   const [expDesc, setExpDesc] = useState('');
   const [expAmount, setExpAmount] = useState('');
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [expensePaidBy, setExpensePaidBy] = useState('');
   const [expenseSplitMode, setExpenseSplitMode] = useState<ExpenseSplitMode>('equal');
   const [expenseParticipantIds, setExpenseParticipantIds] = useState<string[]>([]);
@@ -368,6 +369,41 @@ const TripDetail = () => {
         numericInputs.map(item => ({ user_id: item.user_id, weight: item.value })),
       ),
     };
+  };
+
+  const resetExpenseForm = () => {
+    setEditingExpenseId(null);
+    setExpDesc('');
+    setExpAmount('');
+    setExpenseSplitMode('equal');
+    const nextParticipantIds = members.map(member => member.user_id);
+    setExpenseParticipantIds(nextParticipantIds);
+    setExpenseCustomShares(Object.fromEntries(nextParticipantIds.map(member => [member, ''])));
+    setExpensePaidBy(user?.id && nextParticipantIds.includes(user.id) ? user.id : nextParticipantIds[0] || '');
+  };
+
+  const openEditExpenseDialog = (expense: Expense) => {
+    const shares = expenseSharesByExpense[expense.id] || [];
+    const participantIds = shares.map(share => share.user_id);
+    const isEqualSplit =
+      shares.length > 0 &&
+      shares.every(share => Math.abs(Number(share.amount) - Number(shares[0].amount)) < 0.01);
+
+    setEditingExpenseId(expense.id);
+    setExpDesc(expense.description);
+    setExpAmount(String(Number(expense.amount)));
+    setExpensePaidBy(expense.paid_by);
+    setExpenseParticipantIds(participantIds);
+    setExpenseSplitMode(isEqualSplit ? 'equal' : 'exact');
+    setExpenseCustomShares(
+      Object.fromEntries(
+        participantIds.map(memberId => {
+          const share = shares.find(item => item.user_id === memberId);
+          return [memberId, share ? String(Number(share.amount)) : ''];
+        }),
+      ),
+    );
+    setExpenseDialog(true);
   };
 
   const fetchTripBasics = async () => {
@@ -635,7 +671,7 @@ const TripDetail = () => {
   useEffect(() => { refreshTripPage(); }, [tripId]);
 
   // --- Action handlers ---
-  const addExpense = async (e: React.FormEvent) => {
+  const saveExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !tripId) return;
     const amount = parseFloat(expAmount);
@@ -651,11 +687,35 @@ const TripDetail = () => {
       return;
     }
 
-    const { data: expense, error } = await supabase.from('expenses').insert({ trip_id: tripId, paid_by: expensePaidBy, description: expDesc, amount }).select().single();
-    if (error) { toast.error(error.message); return; }
+    let expenseId = editingExpenseId;
+
+    if (editingExpenseId) {
+      const updateExpense = await supabase
+        .from('expenses')
+        .update({ paid_by: expensePaidBy, description: expDesc, amount })
+        .eq('id', editingExpenseId)
+        .select()
+        .single();
+      if (updateExpense.error) { toast.error(updateExpense.error.message); return; }
+      expenseId = updateExpense.data.id;
+
+      const deleteShares = await supabase.from('expense_shares').delete().eq('expense_id', editingExpenseId);
+      if (deleteShares.error) {
+        toast.error(deleteShares.error.message);
+        return;
+      }
+    } else {
+      const createExpense = await supabase
+        .from('expenses')
+        .insert({ trip_id: tripId, paid_by: expensePaidBy, created_by: user.id, description: expDesc, amount })
+        .select()
+        .single();
+      if (createExpense.error) { toast.error(createExpense.error.message); return; }
+      expenseId = createExpense.data.id;
+    }
 
     const shareRows = shares.map(share => ({
-      expense_id: expense.id,
+      expense_id: expenseId!,
       user_id: share.user_id,
       amount: share.amount,
     }));
@@ -666,12 +726,7 @@ const TripDetail = () => {
       return;
     }
 
-    setExpDesc('');
-    setExpAmount('');
-    setExpenseSplitMode('equal');
-    setExpenseParticipantIds(members.map(member => member.user_id));
-    setExpenseCustomShares(Object.fromEntries(members.map(member => [member.user_id, ''])));
-    setExpensePaidBy(user.id);
+    resetExpenseForm();
     setExpenseDialog(false);
     toast.success('Expense added! 💸');
     fetchExpensesAndSettlements(members.map(member => member.user_id));
@@ -958,21 +1013,21 @@ const TripDetail = () => {
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#eff8f7_0%,#fff7f1_30%,#fffdfb_100%)]">
-      <header className="sticky top-0 z-30 border-b border-[#eadfd4] bg-white/85 backdrop-blur-md">
-        <div className="flex items-center justify-between gap-4 px-4 py-4 sm:px-6">
-          <div className="flex flex-wrap items-center gap-3">
+      <header className="sticky top-0 z-30 border-b border-[#eadfd4] bg-white/90 backdrop-blur-md">
+        <div className="flex items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4">
+          <div className="flex min-w-0 items-center gap-3">
             <Link to="/dashboard" className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#ff8a3d_0%,#f76707_100%)] shadow-[0_12px_30px_-18px_rgba(247,103,7,0.9)]">
-                <Home className="h-5 w-5 text-white" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#ff8a3d_0%,#f76707_100%)] shadow-[0_12px_30px_-18px_rgba(247,103,7,0.9)] sm:h-11 sm:w-11">
+                <Home className="h-4 w-4 text-white sm:h-5 sm:w-5" />
               </div>
-              <div>
-                <p className="text-2xl font-bold text-[#f76707]">FunTrip</p>
-                <p className="text-xs uppercase tracking-[0.2em] text-[#8a796b]">Travel Hub</p>
+              <div className="min-w-0">
+                <p className="truncate text-xl font-bold text-[#f76707] sm:text-2xl">FunTrip</p>
+                <p className="hidden text-xs uppercase tracking-[0.2em] text-[#8a796b] sm:block">Travel Hub</p>
               </div>
             </Link>
-            <Badge className="rounded-full border border-[#ffd8bf] bg-[#fff2e8] px-4 py-1 text-[#d9480f] hover:bg-[#fff2e8]">Trip Planning Workspace</Badge>
+            <Badge className="hidden rounded-full border border-[#ffd8bf] bg-[#fff2e8] px-4 py-1 text-[#d9480f] hover:bg-[#fff2e8] sm:inline-flex">Trip Planning Workspace</Badge>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <div className="hidden items-center gap-3 rounded-full border border-[#eadfd4] bg-white px-3 py-2 shadow-sm sm:flex">
               <Avatar className="h-10 w-10">
                 <AvatarFallback className="bg-[linear-gradient(135deg,#ff8a3d_0%,#f76707_100%)] text-sm font-bold text-white">
@@ -984,7 +1039,10 @@ const TripDetail = () => {
                 <p className="text-xs text-muted-foreground">{viewerProfile.role === 'super_admin' ? 'Super Admin' : 'Admin'}</p>
               </div>
             </div>
-            <Button variant="outline" className="rounded-full" onClick={handleSignOut}><LogOut className="mr-2 h-4 w-4" /> Sign Out</Button>
+            <Button variant="outline" className="rounded-full px-3 sm:px-4" onClick={handleSignOut}>
+              <LogOut className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Sign Out</span>
+            </Button>
           </div>
         </div>
       </header>
@@ -1045,7 +1103,7 @@ const TripDetail = () => {
       </header>
 
       <div className="lg:grid lg:grid-cols-[250px_minmax(0,1fr)]">
-        <aside className="border-b border-[#eadfd4] bg-white/75 px-4 py-5 backdrop-blur-sm lg:min-h-[calc(100vh-81px)] lg:border-b-0 lg:border-r lg:px-5">
+        <aside className="sticky top-[65px] z-20 border-b border-[#eadfd4] bg-white/85 px-4 py-3 backdrop-blur-sm lg:static lg:min-h-[calc(100vh-81px)] lg:border-b-0 lg:border-r lg:px-5 lg:py-5">
           <div className="hidden space-y-6 lg:block">
             <div>
               <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#8a796b]">Main</p>
@@ -1080,7 +1138,7 @@ const TripDetail = () => {
             ))}
           </div>
 
-          <div className="flex gap-2 overflow-x-auto lg:hidden">
+          <div className="flex gap-2 overflow-x-auto py-1 lg:hidden">
             <Link to="/dashboard" className="flex shrink-0 items-center gap-2 rounded-full border border-[#eadfd4] bg-white px-4 py-2 text-sm text-[#5f534a]">
               <Home className="h-4 w-4" />
               Dashboard
@@ -1103,9 +1161,41 @@ const TripDetail = () => {
           </div>
         </aside>
 
-        <main className="px-4 py-5 sm:px-6 sm:py-6">
+        <main className="px-4 py-4 sm:px-6 sm:py-6">
           <div className="space-y-6">
-            <div className="rounded-[28px] bg-[linear-gradient(135deg,#f76707_0%,#d9480f_45%,#617a43_100%)] px-6 py-6 text-white shadow-[0_30px_60px_-30px_rgba(217,72,15,0.8)] sm:px-8">
+            <div className="rounded-[24px] border border-white/60 bg-white/85 p-4 shadow-sm md:hidden">
+              <div className="flex flex-col gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a796b]">Current Trip</p>
+                  <p className="mt-2 text-2xl font-extrabold text-foreground">{trip.name}</p>
+                  <p className="mt-2 text-sm text-muted-foreground">{trip.description || 'Keep your planning and trip work in one shared space.'}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className="rounded-full px-3 py-1">{members.length} members</Badge>
+                  <Badge variant="outline" className="rounded-full px-3 py-1">{tabSummary[activeTab].title}</Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">{tabSummary[activeTab].description}</p>
+                <div className="flex flex-wrap gap-2">
+                  <Dialog open={memberDialog} onOpenChange={setMemberDialog}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm"><Users className="mr-2 h-4 w-4" /> Members</Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader><DialogTitle>Add Trip Member</DialogTitle></DialogHeader>
+                      <form onSubmit={addMember} className="space-y-4">
+                        <div className="space-y-2">
+                          <Label>Display Name</Label>
+                          <Input value={memberEmail} onChange={e => setMemberEmail(e.target.value)} placeholder="Enter their display name" required />
+                        </div>
+                        <Button type="submit" className="w-full gradient-primary border-none text-primary-foreground">Add Member</Button>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </div>
+            </div>
+
+            <div className="hidden rounded-[28px] bg-[linear-gradient(135deg,#f76707_0%,#d9480f_45%,#617a43_100%)] px-6 py-6 text-white shadow-[0_30px_60px_-30px_rgba(217,72,15,0.8)] md:block sm:px-8">
               <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
                 <div>
                   <Badge className="rounded-full border border-white/25 bg-white/10 px-3 py-1 text-white hover:bg-white/10">Current Trip</Badge>
@@ -1147,7 +1237,7 @@ const TripDetail = () => {
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="hidden gap-4 sm:grid sm:grid-cols-2 xl:grid-cols-4">
               {heroStats.map((item, index) => {
                 const Icon = item.icon;
                 return (
@@ -1166,7 +1256,7 @@ const TripDetail = () => {
               })}
             </div>
 
-            <Card className="border-white/60 shadow-sm">
+            <Card className="hidden border-white/60 shadow-sm md:block">
               <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-xl font-bold">{tabSummary[activeTab].title}</p>
@@ -1192,10 +1282,13 @@ const TripDetail = () => {
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h3 className="text-lg font-bold">Expenses</h3>
               <Dialog open={expenseDialog} onOpenChange={setExpenseDialog}>
-                <DialogTrigger asChild><Button className="gradient-primary border-none text-primary-foreground"><Plus className="mr-2 h-4 w-4" /> Add</Button></DialogTrigger>
+                <DialogTrigger asChild><Button className="gradient-primary border-none text-primary-foreground" onClick={resetExpenseForm}><Plus className="mr-2 h-4 w-4" /> Add</Button></DialogTrigger>
                 <DialogContent>
                   <DialogHeader><DialogTitle>Add Expense 💰</DialogTitle></DialogHeader>
-                  <form onSubmit={addExpense} className="space-y-4">
+                  <form onSubmit={saveExpense} className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                      {editingExpenseId ? 'Update the expense details, split, payer, or participants.' : 'Create a new shared expense for this trip.'}
+                    </p>
                     <div className="space-y-2"><Label>Description</Label><Input value={expDesc} onChange={e => setExpDesc(e.target.value)} placeholder="Lunch at restaurant" required /></div>
                     <div className="space-y-2"><Label>Amount (₹)</Label><Input type="number" step="0.01" value={expAmount} onChange={e => setExpAmount(e.target.value)} placeholder="500" required /></div>
                     <div className="space-y-2">
@@ -1276,7 +1369,7 @@ const TripDetail = () => {
                         </div>
                       </div>
                     )}
-                    <Button type="submit" className="w-full gradient-primary border-none text-primary-foreground">Add Expense</Button>
+                    <Button type="submit" className="w-full gradient-primary border-none text-primary-foreground">{editingExpenseId ? 'Save Changes' : 'Add Expense'}</Button>
                   </form>
                 </DialogContent>
               </Dialog>
@@ -1318,7 +1411,16 @@ const TripDetail = () => {
                         <TableCell className="text-right font-semibold">₹{Number(exp.amount).toFixed(2)}</TableCell>
                         <TableCell className="text-right text-muted-foreground text-sm">{new Date(exp.created_at).toLocaleDateString()}</TableCell>
                         <TableCell className="text-right">
-                          {exp.paid_by === user?.id && <Button variant="ghost" size="icon" onClick={() => deleteExpense(exp.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
+                          {(exp.created_by || exp.paid_by) === user?.id && (
+                            <div className="flex items-center justify-end gap-1">
+                              <Button variant="ghost" size="icon" onClick={() => openEditExpenseDialog(exp)}>
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => deleteExpense(exp.id)}>
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          )}
                         </TableCell>
                       </TableRow>
                     )})}
