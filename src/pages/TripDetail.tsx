@@ -846,6 +846,9 @@ const TripDetail = () => {
 
     const previousMembers = members;
     const previousProfiles = profiles;
+    const previousExpenseParticipantIds = expenseParticipantIds;
+    const previousExpenseCustomShares = expenseCustomShares;
+    const previousMemberNetBalances = memberNetBalances;
 
     setMembers(current => current.filter(member => member.user_id !== memberId));
     setProfiles(current => {
@@ -865,16 +868,20 @@ const TripDetail = () => {
       return next;
     });
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('trip_members')
       .delete()
+      .select('id')
       .eq('trip_id', tripId)
       .eq('user_id', memberId);
 
-    if (error) {
+    if (error || !data?.length) {
       setMembers(previousMembers);
       setProfiles(previousProfiles);
-      toast.error(error.message);
+      setExpenseParticipantIds(previousExpenseParticipantIds);
+      setExpenseCustomShares(previousExpenseCustomShares);
+      setMemberNetBalances(previousMemberNetBalances);
+      toast.error(error?.message ?? 'Member could not be removed. Please apply the latest Supabase migration.');
       return;
     }
 
