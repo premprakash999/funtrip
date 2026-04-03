@@ -837,6 +837,28 @@ const TripDetail = () => {
     setMemberEmail(''); setMemberDialog(false); toast.success('Member added! 🤝'); refreshTripPage();
   };
 
+  const removeMember = async (memberId: string) => {
+    if (!tripId) return;
+    if (memberId === trip.created_by) {
+      toast.error('Trip owner cannot be removed.');
+      return;
+    }
+
+    const { error } = await supabase
+      .from('trip_members')
+      .delete()
+      .eq('trip_id', tripId)
+      .eq('user_id', memberId);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success('Member removed from trip');
+    refreshTripPage();
+  };
+
   // Poll
   const createPoll = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2227,6 +2249,9 @@ const TripDetail = () => {
                 <div>
                   <h3 className="text-lg font-bold">Trip Members</h3>
                   <p className="text-sm text-muted-foreground">Everyone who can view and collaborate inside this trip.</p>
+                  {(viewerProfile.role === 'admin' || viewerProfile.role === 'super_admin') && (
+                    <p className="mt-1 text-xs text-muted-foreground">Admins can remove non-owner members directly from this list.</p>
+                  )}
                 </div>
                 <Dialog open={memberDialog} onOpenChange={setMemberDialog}>
                   <DialogTrigger asChild>
@@ -2260,9 +2285,17 @@ const TripDetail = () => {
                           <p className="text-xs text-muted-foreground">{member.user_id}</p>
                         </div>
                       </div>
-                      <Badge variant="outline" className="capitalize">
-                        {member.user_id === trip.created_by ? 'Trip Owner' : 'Member'}
-                      </Badge>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="outline" className="capitalize">
+                          {member.user_id === trip.created_by ? 'Trip Owner' : 'Member'}
+                        </Badge>
+                        {(viewerProfile.role === 'admin' || viewerProfile.role === 'super_admin') && member.user_id !== trip.created_by && member.user_id !== user?.id && (
+                          <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => removeMember(member.user_id)}>
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Remove
+                          </Button>
+                        )}
+                      </div>
                     </CardContent>
                     </Card>
                   ))}
