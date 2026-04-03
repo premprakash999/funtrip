@@ -844,6 +844,27 @@ const TripDetail = () => {
       return;
     }
 
+    const previousMembers = members;
+    const previousProfiles = profiles;
+
+    setMembers(current => current.filter(member => member.user_id !== memberId));
+    setProfiles(current => {
+      const next = { ...current };
+      delete next[memberId];
+      return next;
+    });
+    setExpenseParticipantIds(current => current.filter(id => id !== memberId));
+    setExpenseCustomShares(current => {
+      const next = { ...current };
+      delete next[memberId];
+      return next;
+    });
+    setMemberNetBalances(current => {
+      const next = { ...current };
+      delete next[memberId];
+      return next;
+    });
+
     const { error } = await supabase
       .from('trip_members')
       .delete()
@@ -851,12 +872,14 @@ const TripDetail = () => {
       .eq('user_id', memberId);
 
     if (error) {
+      setMembers(previousMembers);
+      setProfiles(previousProfiles);
       toast.error(error.message);
       return;
     }
 
     toast.success('Member removed from trip');
-    refreshTripPage();
+    await refreshTripPage();
   };
 
   // Poll
