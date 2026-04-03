@@ -39,6 +39,8 @@ const NAV = [
 const COLORS = ['gradient-primary', 'gradient-teal', 'gradient-warm'];
 const getInitials = (name: string) => name?.split(' ').map(part => part[0]).join('').toUpperCase().slice(0, 2) || '?';
 const fmtDate = (value: string) => new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(value));
+const formatCurrentDate = (value: Date = new Date()) =>
+  value.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 const greeting = () => new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 18 ? 'Good afternoon' : 'Good evening';
 
 const Dashboard = () => {
@@ -53,6 +55,15 @@ const Dashboard = () => {
   const [tripMembers, setTripMembers] = useState<Record<string, MemberRow[]>>({});
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [profile, setProfile] = useState<{ display_name: string | null; role: AppRole } | null>(null);
+  const [currentDateLabel, setCurrentDateLabel] = useState(() => formatCurrentDate());
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setCurrentDateLabel(formatCurrentDate());
+    }, 60 * 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   const fetchProfile = async () => {
     if (!user) return;
@@ -166,6 +177,7 @@ const Dashboard = () => {
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a796b]">Workspace</p>
             <p className="mt-2 text-2xl font-extrabold text-foreground">{greeting()}, {profile?.display_name || 'Traveler'}</p>
             <p className="mt-2 text-sm text-muted-foreground">Open trips, members, and planning tools without the desktop-heavy dashboard shell.</p>
+            <p className="mt-2 text-sm font-medium text-[#5f534a]">{currentDateLabel}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline">{trips.length} trips</Badge>
@@ -181,7 +193,7 @@ const Dashboard = () => {
           <div>
             <p className="text-3xl font-extrabold">{greeting()}, {profile?.display_name || 'Traveler'}</p>
             <p className="mt-2 max-w-xl text-sm text-white/85 sm:text-base">Welcome back to your travel workspace. Keep trips, members, and planning details tidy in one place.</p>
-            <p className="mt-3 text-sm text-white/80">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+            <p className="mt-3 text-sm text-white/80">{currentDateLabel}</p>
           </div>
           {latestTrip && <Button className="border-none bg-white/15 text-white hover:bg-white/25" onClick={() => openLatestTrip()}>Open Latest Trip</Button>}
         </div>
@@ -336,6 +348,9 @@ const Dashboard = () => {
             <Badge className="hidden rounded-full border border-[#ffd8bf] bg-[#fff2e8] px-4 py-1 text-[#d9480f] hover:bg-[#fff2e8] sm:inline-flex">Group Planning Workspace</Badge>
           </div>
           <div className="flex items-center gap-3">
+            <Badge variant="outline" className="rounded-full border-[#eadfd4] bg-white/90 px-3 py-1 text-[#5f534a]">
+              {currentDateLabel}
+            </Badge>
             <div className="hidden items-center gap-3 rounded-full border border-[#eadfd4] bg-white px-3 py-2 shadow-sm sm:flex">
               <Avatar className="h-10 w-10"><AvatarFallback className="bg-[linear-gradient(135deg,#ff8a3d_0%,#f76707_100%)] text-sm font-bold text-white">{getInitials(profile?.display_name || '')}</AvatarFallback></Avatar>
               <div>

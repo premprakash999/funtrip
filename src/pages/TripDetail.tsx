@@ -102,6 +102,8 @@ const formatInventoryStatus = (status: InventoryStatus) => INVENTORY_STATUSES.fi
 const formatCurrency = (value: number) => `₹${value.toFixed(2)}`;
 const getForumCategoryMeta = (category: ForumCategory) =>
   FORUM_CATEGORIES.find(option => option.value === category) || FORUM_CATEGORIES[0];
+const formatCurrentDate = (value: Date = new Date()) =>
+  value.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 const formatRelativeDate = (value: string) => {
   const diffMs = new Date().getTime() - new Date(value).getTime();
   const diffHours = Math.max(1, Math.floor(diffMs / (1000 * 60 * 60)));
@@ -185,6 +187,15 @@ const TripDetail = () => {
   const [paymentNotes, setPaymentNotes] = useState('');
   const [activeTab, setActiveTab] = useState<TripTab>('expenses');
   const [memberNetBalances, setMemberNetBalances] = useState<Record<string, number>>({});
+  const [currentDateLabel, setCurrentDateLabel] = useState(() => formatCurrentDate());
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setCurrentDateLabel(formatCurrentDate());
+    }, 60 * 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   useEffect(() => {
     const nextTab = searchParams.get('tab');
@@ -1080,6 +1091,9 @@ const TripDetail = () => {
             <Badge className="hidden rounded-full border border-[#ffd8bf] bg-[#fff2e8] px-4 py-1 text-[#d9480f] hover:bg-[#fff2e8] sm:inline-flex">Trip Planning Workspace</Badge>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
+            <Badge variant="outline" className="rounded-full border-[#eadfd4] bg-white/90 px-3 py-1 text-[#5f534a]">
+              {currentDateLabel}
+            </Badge>
             <div className="hidden items-center gap-3 rounded-full border border-[#eadfd4] bg-white px-3 py-2 shadow-sm sm:flex">
               <Avatar className="h-10 w-10">
                 <AvatarFallback className="bg-[linear-gradient(135deg,#ff8a3d_0%,#f76707_100%)] text-sm font-bold text-white">
@@ -1221,6 +1235,7 @@ const TripDetail = () => {
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a796b]">Current Trip</p>
                   <p className="mt-2 text-2xl font-extrabold text-foreground">{trip.name}</p>
                   <p className="mt-2 text-sm text-muted-foreground">{trip.description || 'Keep your planning and trip work in one shared space.'}</p>
+                  <p className="mt-2 text-sm font-medium text-[#5f534a]">{currentDateLabel}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline" className="rounded-full px-3 py-1">{members.length} members</Badge>
@@ -1253,7 +1268,7 @@ const TripDetail = () => {
                   <Badge className="rounded-full border border-white/25 bg-white/10 px-3 py-1 text-white hover:bg-white/10">Current Trip</Badge>
                   <p className="mt-4 text-3xl font-extrabold">{trip.name}</p>
                   <p className="mt-2 max-w-2xl text-sm text-white/85 sm:text-base">{trip.description || 'Keep your planning, updates, members, and trip work in one shared space.'}</p>
-                  <p className="mt-3 text-sm text-white/80">{new Date(trip.created_at).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                  <p className="mt-3 text-sm text-white/80">{currentDateLabel}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="flex -space-x-2">
