@@ -1053,6 +1053,8 @@ const TripDetail = () => {
     { label: 'Your Role', value: viewerProfile.role === 'super_admin' ? 'SA' : 'AD', icon: Shield },
   ];
   const canManageMembers = !!user?.id && trip?.created_by === user.id;
+  const canManageExpense = (expense: Expense) =>
+    canManageMembers || (expense.created_by || expense.paid_by) === user?.id;
   const filteredForumPosts = forumFilter === 'all'
     ? forumPosts
     : forumPosts.filter(post => post.category === forumFilter);
@@ -1493,7 +1495,7 @@ const TripDetail = () => {
                             </div>
                           </div>
                         </div>
-                        {(exp.created_by || exp.paid_by) === user?.id && (
+                        {canManageExpense(exp) && (
                           <div className="mt-4 flex gap-2">
                             <Button variant="outline" className="flex-1" onClick={() => openEditExpenseDialog(exp)}>
                               <Pencil className="mr-2 h-4 w-4" />
@@ -1542,7 +1544,7 @@ const TripDetail = () => {
                         <TableCell className="text-right font-semibold">₹{Number(exp.amount).toFixed(2)}</TableCell>
                         <TableCell className="text-right text-muted-foreground text-sm">{new Date(exp.created_at).toLocaleDateString()}</TableCell>
                         <TableCell className="text-right">
-                          {(exp.created_by || exp.paid_by) === user?.id && (
+                          {canManageExpense(exp) && (
                             <div className="flex items-center justify-end gap-1">
                               <Button variant="ghost" size="icon" onClick={() => openEditExpenseDialog(exp)}>
                                 <Pencil className="h-4 w-4" />
