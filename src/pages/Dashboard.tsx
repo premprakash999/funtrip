@@ -334,7 +334,7 @@ const Dashboard = () => {
   );
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#eff8f7_0%,#fff7f1_30%,#fffdfb_100%)]">
+    <div className="min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,#eff8f7_0%,#fff7f1_30%,#fffdfb_100%)]">
       <header className="sticky top-0 z-30 border-b border-[#eadfd4] bg-white/90 backdrop-blur-md">
         <div className="flex items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4">
           <div className="flex min-w-0 items-center gap-3">
@@ -390,7 +390,7 @@ const Dashboard = () => {
             ))}
           </div>
 
-          <div className="flex gap-2 overflow-x-auto py-1 lg:hidden">
+          <div className="flex flex-wrap gap-2 py-1 lg:hidden">
             {NAV.flatMap(sectionGroup => sectionGroup.items).map(item => {
               const Icon = item.icon;
               const isActive = item.key ? section === item.key : false;
@@ -399,7 +399,7 @@ const Dashboard = () => {
                   key={item.label}
                   type="button"
                   onClick={() => item.key ? setSection(item.key) : openLatestTrip(item.tab)}
-                  className={`flex shrink-0 items-center gap-2 rounded-full border px-4 py-2 text-sm ${isActive ? 'border-[#ffcfb0] bg-[#fff0e7] text-[#d9480f]' : 'border-[#eadfd4] bg-white text-[#5f534a]'}`}
+                  className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm ${isActive ? 'border-[#ffcfb0] bg-[#fff0e7] text-[#d9480f]' : 'border-[#eadfd4] bg-white text-[#5f534a]'}`}
                 >
                   <Icon className="h-4 w-4" />
                   {item.label}
@@ -409,7 +409,7 @@ const Dashboard = () => {
           </div>
         </aside>
 
-        <main className="px-4 py-4 sm:px-6 sm:py-6">
+        <main className="min-w-0 px-4 py-4 sm:px-6 sm:py-6">
           {loading ? (
             <Card className="border-white/60 shadow-sm"><CardContent className="py-16 text-center text-muted-foreground">Loading dashboard...</CardContent></Card>
           ) : section === 'dashboard' ? overview : section === 'trips' ? tripList : memberList}

@@ -840,6 +840,10 @@ const TripDetail = () => {
   const addMember = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tripId) return;
+    if (!canManageMembers) {
+      toast.error('Only the trip owner can add members.');
+      return;
+    }
     const { data } = await supabase.from('profiles').select('user_id, display_name');
     const match = data?.find(p => p.display_name?.toLowerCase() === memberEmail.toLowerCase());
     if (!match) { toast.error('User not found. They need to sign up first.'); return; }
@@ -850,6 +854,10 @@ const TripDetail = () => {
 
   const removeMember = async (memberId: string) => {
     if (!tripId) return;
+    if (!canManageMembers) {
+      toast.error('Only the trip owner can remove members.');
+      return;
+    }
     if (memberId === trip.created_by) {
       toast.error('Trip owner cannot be removed.');
       return;
@@ -1044,6 +1052,7 @@ const TripDetail = () => {
     { label: 'Inventory', value: items.length, icon: Package },
     { label: 'Your Role', value: viewerProfile.role === 'super_admin' ? 'SA' : 'AD', icon: Shield },
   ];
+  const canManageMembers = !!user?.id && trip?.created_by === user.id;
   const filteredForumPosts = forumFilter === 'all'
     ? forumPosts
     : forumPosts.filter(post => post.category === forumFilter);
@@ -1075,7 +1084,7 @@ const TripDetail = () => {
     .sort((a, b) => b.balance - a.balance);
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#eff8f7_0%,#fff7f1_30%,#fffdfb_100%)]">
+    <div className="min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,#eff8f7_0%,#fff7f1_30%,#fffdfb_100%)]">
       <header className="sticky top-0 z-30 border-b border-[#eadfd4] bg-white/90 backdrop-blur-md">
         <div className="flex items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4">
           <div className="flex min-w-0 items-center gap-3">
@@ -1135,7 +1144,7 @@ const TripDetail = () => {
               </Avatar>
             )}
           </div>
-          <Dialog open={memberDialog} onOpenChange={setMemberDialog}>
+          {canManageMembers && <Dialog open={memberDialog} onOpenChange={setMemberDialog}>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm" className="shrink-0"><Users className="mr-2 h-4 w-4" /> Add</Button>
             </DialogTrigger>
@@ -1164,7 +1173,7 @@ const TripDetail = () => {
                 </div>
               </div>
             </DialogContent>
-          </Dialog>
+          </Dialog>}
         </div>
       </header>
 
@@ -1204,7 +1213,7 @@ const TripDetail = () => {
             ))}
           </div>
 
-          <div className="flex gap-2 overflow-x-auto py-1 lg:hidden">
+          <div className="flex flex-wrap gap-2 py-1 lg:hidden">
             <Link to="/dashboard" className="flex shrink-0 items-center gap-2 rounded-full border border-[#eadfd4] bg-white px-4 py-2 text-sm text-[#5f534a]">
               <Home className="h-4 w-4" />
               Dashboard
@@ -1217,7 +1226,7 @@ const TripDetail = () => {
                   key={item.key}
                   type="button"
                   onClick={() => setActiveTab(item.key)}
-                  className={`flex shrink-0 items-center gap-2 rounded-full border px-4 py-2 text-sm ${isActive ? 'border-[#ffcfb0] bg-[#fff0e7] text-[#d9480f]' : 'border-[#eadfd4] bg-white text-[#5f534a]'}`}
+                  className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm ${isActive ? 'border-[#ffcfb0] bg-[#fff0e7] text-[#d9480f]' : 'border-[#eadfd4] bg-white text-[#5f534a]'}`}
                 >
                   <Icon className="h-4 w-4" />
                   {item.label}
@@ -1227,7 +1236,7 @@ const TripDetail = () => {
           </div>
         </aside>
 
-        <main className="px-4 py-4 sm:px-6 sm:py-6">
+        <main className="min-w-0 px-4 py-4 sm:px-6 sm:py-6">
           <div className="space-y-6">
             <div className="rounded-[24px] border border-white/60 bg-white/85 p-4 shadow-sm md:hidden">
               <div className="flex flex-col gap-4">
@@ -1243,7 +1252,7 @@ const TripDetail = () => {
                 </div>
                 <p className="text-sm text-muted-foreground">{tabSummary[activeTab].description}</p>
                 <div className="flex flex-wrap gap-2">
-                  <Dialog open={memberDialog} onOpenChange={setMemberDialog}>
+                  {canManageMembers && <Dialog open={memberDialog} onOpenChange={setMemberDialog}>
                     <DialogTrigger asChild>
                       <Button variant="outline" size="sm"><Users className="mr-2 h-4 w-4" /> Members</Button>
                     </DialogTrigger>
@@ -1257,7 +1266,7 @@ const TripDetail = () => {
                         <Button type="submit" className="w-full gradient-primary border-none text-primary-foreground">Add Member</Button>
                       </form>
                     </DialogContent>
-                  </Dialog>
+                  </Dialog>}
                 </div>
               </div>
             </div>
@@ -1285,7 +1294,7 @@ const TripDetail = () => {
                       </Avatar>
                     )}
                   </div>
-                  <Dialog open={memberDialog} onOpenChange={setMemberDialog}>
+                  {canManageMembers && <Dialog open={memberDialog} onOpenChange={setMemberDialog}>
                     <DialogTrigger asChild>
                       <Button className="border-none bg-white/15 text-white hover:bg-white/25"><Users className="mr-2 h-4 w-4" /> Add Member</Button>
                     </DialogTrigger>
@@ -1299,7 +1308,7 @@ const TripDetail = () => {
                         <Button type="submit" className="w-full gradient-primary border-none text-primary-foreground">Add Member</Button>
                       </form>
                     </DialogContent>
-                  </Dialog>
+                  </Dialog>}
                 </div>
               </div>
             </div>
@@ -1350,7 +1359,7 @@ const TripDetail = () => {
               <h3 className="text-lg font-bold">Expenses</h3>
               <Dialog open={expenseDialog} onOpenChange={setExpenseDialog}>
                 <DialogTrigger asChild><Button className="gradient-primary border-none text-primary-foreground" onClick={resetExpenseForm}><Plus className="mr-2 h-4 w-4" /> Add</Button></DialogTrigger>
-                <DialogContent>
+                <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
                   <DialogHeader><DialogTitle>Add Expense 💰</DialogTitle></DialogHeader>
                   <form onSubmit={saveExpense} className="space-y-4">
                     <p className="text-sm text-muted-foreground">
@@ -1386,16 +1395,18 @@ const TripDetail = () => {
                     <div className="space-y-2">
                       <Label>Split Between Members</Label>
                       <div className="rounded-xl border p-3">
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          {members.map(member => (
-                            <label key={member.user_id} className="flex items-center gap-2 text-sm">
-                              <Checkbox
-                                checked={expenseParticipantIds.includes(member.user_id)}
-                                onCheckedChange={checked => toggleExpenseParticipant(member.user_id, checked === true)}
-                              />
-                              <span>{member.display_name}</span>
-                            </label>
-                          ))}
+                        <div className="max-h-56 overflow-y-auto pr-1">
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            {members.map(member => (
+                              <label key={member.user_id} className="flex items-center gap-2 text-sm">
+                                <Checkbox
+                                  checked={expenseParticipantIds.includes(member.user_id)}
+                                  onCheckedChange={checked => toggleExpenseParticipant(member.user_id, checked === true)}
+                                />
+                                <span>{member.display_name}</span>
+                              </label>
+                            ))}
+                          </div>
                         </div>
                       </div>
                       <p className="text-sm text-muted-foreground">
@@ -1419,7 +1430,7 @@ const TripDetail = () => {
                             {expenseSplitMode === 'exact' ? formatCurrency(currentExpenseAmount) : '100% target'}
                           </Badge>
                         </div>
-                        <div className="space-y-3">
+                        <div className="max-h-56 space-y-3 overflow-y-auto pr-1">
                           {selectedExpenseMembers.map(member => (
                             <div key={member.user_id} className="grid gap-2 sm:grid-cols-[1fr_140px] sm:items-center">
                               <div className="text-sm font-medium">{member.display_name}</div>
@@ -1445,7 +1456,60 @@ const TripDetail = () => {
               <Card className="border-dashed border-2"><CardContent className="py-10 text-center"><p className="text-4xl mb-2">💸</p><p className="text-muted-foreground">No expenses yet</p></CardContent></Card>
             ) : (
               <Card>
-                <div className="overflow-x-auto">
+                <div className="space-y-4 p-4 md:hidden">
+                  {expenses.map(exp => {
+                    const sharedMembers = expenseSharesByExpense[exp.id] || [];
+                    return (
+                      <div key={`expense-mobile-${exp.id}`} className="rounded-2xl border border-border/70 bg-background p-4 shadow-sm">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-semibold">{exp.description}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">{new Date(exp.created_at).toLocaleDateString('en-IN')}</p>
+                          </div>
+                          <Badge variant="secondary" className="shrink-0 text-sm font-semibold">
+                            {formatCurrency(Number(exp.amount))}
+                          </Badge>
+                        </div>
+                        <div className="mt-4 space-y-3">
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Paid By</p>
+                            <div className="mt-2 flex items-center gap-2 text-sm">
+                              <Avatar className="h-6 w-6"><AvatarFallback className="gradient-primary text-primary-foreground text-[9px]">{getInitials(profiles[exp.paid_by] || '')}</AvatarFallback></Avatar>
+                              <span>{profiles[exp.paid_by] || 'Unknown'}</span>
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Split Details</p>
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              {sharedMembers.length === 0 ? (
+                                <span className="text-sm text-muted-foreground">No members</span>
+                              ) : (
+                                sharedMembers.map(share => (
+                                  <Badge key={`mobile-${exp.id}-${share.user_id}`} variant="outline" className="text-xs">
+                                    {(profiles[share.user_id] || 'Unknown')} - {formatCurrency(Number(share.amount))}
+                                  </Badge>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        {(exp.created_by || exp.paid_by) === user?.id && (
+                          <div className="mt-4 flex gap-2">
+                            <Button variant="outline" className="flex-1" onClick={() => openEditExpenseDialog(exp)}>
+                              <Pencil className="mr-2 h-4 w-4" />
+                              Edit
+                            </Button>
+                            <Button variant="outline" className="flex-1 text-destructive hover:text-destructive" onClick={() => deleteExpense(exp.id)}>
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="hidden overflow-x-auto md:block">
                 <Table>
                   <TableHeader><TableRow>
                     <TableHead>Description</TableHead><TableHead>Paid By</TableHead><TableHead>Split Details</TableHead><TableHead className="text-right">Amount</TableHead><TableHead className="text-right">Date</TableHead><TableHead></TableHead>
@@ -1534,7 +1598,24 @@ const TripDetail = () => {
                   <CardTitle className="text-base">Traveler Balances</CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <div className="overflow-x-auto">
+                  <div className="space-y-3 md:hidden">
+                    {travelerBalances.map(member => (
+                      <div key={`balance-mobile-${member.user_id}`} className="rounded-2xl border border-border/70 bg-background p-4 shadow-sm">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-semibold">{member.display_name}</p>
+                            <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                              {member.balance > 0.009 ? 'Gets back' : member.balance < -0.009 ? 'Owes' : 'Settled'}
+                            </p>
+                          </div>
+                          <Badge variant="outline" className="shrink-0 font-semibold">
+                            {formatCurrency(member.balance)}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="hidden overflow-x-auto md:block">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -1579,7 +1660,29 @@ const TripDetail = () => {
                       <p className="mb-4 text-sm text-muted-foreground">
                         These are the minimum settlement transfers needed right now.
                       </p>
-                      <div className="overflow-x-auto">
+                      <div className="space-y-3 md:hidden">
+                        {settlements.map((s, i) => (
+                          <div key={`settlement-mobile-${s.from}-${s.to}-${i}`} className="rounded-2xl border border-border/70 bg-background p-4 shadow-sm">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="font-semibold">{profiles[s.from] || 'Unknown'} pays {profiles[s.to] || 'Unknown'}</p>
+                                <p className="mt-1 text-sm text-muted-foreground">Simplified transfer</p>
+                              </div>
+                              <Badge variant="secondary" className="shrink-0 text-sm font-semibold">₹{s.amount.toFixed(2)}</Badge>
+                            </div>
+                            <div className="mt-4">
+                              {user?.id === s.from ? (
+                                <Button variant="outline" className="w-full" onClick={() => openPaymentDialog(s)}>
+                                  Record Payment
+                                </Button>
+                              ) : (
+                                <p className="text-xs text-muted-foreground">Pending</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="hidden overflow-x-auto md:block">
                         <Table>
                           <TableHeader>
                             <TableRow>
@@ -2294,11 +2397,11 @@ const TripDetail = () => {
                 <div>
                   <h3 className="text-lg font-bold">Trip Members</h3>
                   <p className="text-sm text-muted-foreground">Everyone who can view and collaborate inside this trip.</p>
-                  {(viewerProfile.role === 'admin' || viewerProfile.role === 'super_admin') && (
-                    <p className="mt-1 text-xs text-muted-foreground">Admins can remove non-owner members directly from this list.</p>
+                  {canManageMembers && (
+                    <p className="mt-1 text-xs text-muted-foreground">Only the trip owner can add or remove members from this trip.</p>
                   )}
                 </div>
-                <Dialog open={memberDialog} onOpenChange={setMemberDialog}>
+                {canManageMembers && <Dialog open={memberDialog} onOpenChange={setMemberDialog}>
                   <DialogTrigger asChild>
                     <Button className="gradient-primary border-none text-primary-foreground"><Users className="mr-2 h-4 w-4" /> Add Member</Button>
                   </DialogTrigger>
@@ -2312,7 +2415,7 @@ const TripDetail = () => {
                       <Button type="submit" className="w-full gradient-primary border-none text-primary-foreground">Add Member</Button>
                     </form>
                   </DialogContent>
-                </Dialog>
+                </Dialog>}
               </div>
 
               <div className="grid gap-4 xl:grid-cols-2">
@@ -2334,7 +2437,7 @@ const TripDetail = () => {
                         <Badge variant="outline" className="capitalize">
                           {member.user_id === trip.created_by ? 'Trip Owner' : 'Member'}
                         </Badge>
-                        {(viewerProfile.role === 'admin' || viewerProfile.role === 'super_admin') && member.user_id !== trip.created_by && member.user_id !== user?.id && (
+                        {canManageMembers && member.user_id !== trip.created_by && member.user_id !== user?.id && (
                           <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => removeMember(member.user_id)}>
                             <Trash2 className="mr-2 h-4 w-4" />
                             Remove
